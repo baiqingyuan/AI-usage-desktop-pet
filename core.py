@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from urllib import request, parse, error
 
-ROOT = Path(__file__).resolve().parent
+from runtime_paths import ROOT, external_process
 SETTINGS = ROOT / 'settings.json'
 SNAPSHOT = ROOT / 'snapshot.json'
 TZ = timezone(timedelta(hours=8))
@@ -191,7 +191,7 @@ def codex_rpc(settings):
     binary = codex_binary(settings)
     if Path(binary).suffix.lower() in ('.cmd', '.bat'):
         raise RuntimeError('设置中请选择原生 codex.exe')
-    p = subprocess.Popen([binary, 'app-server', '--stdio'], stdin=subprocess.PIPE,
+    p = external_process([binary, 'app-server', '--stdio'], stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                          text=True, encoding='utf-8',
                          creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)

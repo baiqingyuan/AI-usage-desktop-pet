@@ -4,6 +4,7 @@ import hashlib
 import os
 from pathlib import Path
 import uuid
+import runtime_paths
 
 APP_ID = 'Bai.AIUsageDesktop.Companion'
 
@@ -166,14 +167,9 @@ class WindowsBridge:
         self.user.SetWindowLongPtrW(self.hwnd, -20, (ex | 0x40000) & ~0x80)
         style = self.user.GetWindowLongPtrW(self.hwnd, -16)
         self.user.SetWindowLongPtrW(self.hwnd, -16, (style | 0x80000 | 0x20000) & ~0xC00000)
-        launcher = self.folder/'AIUsage.exe'
-        icon = self.folder/'app.ico'
-        if launcher.exists():
-            command = '"'+str(launcher)+'"'
-        else:
-            import sys
-            command = '"'+sys.executable+'" "'+str(self.folder/'app.py')+'"'
-        set_window_properties(self.hwnd, {2: command, 3: str(icon)+',0', 4: 'AI 用量挂件', 5: APP_ID})
+        set_window_properties(self.hwnd, {2: runtime_paths.launch_command(self.folder),
+                                         3: runtime_paths.taskbar_icon(self.folder),
+                                         4: 'AI 用量挂件', 5: APP_ID})
         self.user.SetWindowPos(self.hwnd, None, 0, 0, 0, 0, 0x27)
         # A hide/show cycle lets Explorer discover the changed taskbar eligibility.
         self.user.ShowWindow(self.hwnd, 0)
@@ -185,7 +181,7 @@ class WindowsBridge:
         self.user.LoadImageW.argtypes = [ct.c_void_p, ct.c_wchar_p, ct.c_uint, ct.c_int, ct.c_int, ct.c_uint]
         self.user.LoadImageW.restype = ct.c_void_p
         self.user.DestroyIcon.argtypes = [ct.c_void_p]
-        self.icon_handle = self.user.LoadImageW(None, str(self.folder/'app.ico'), 1, 32, 32, 0x10)
+        self.icon_handle = self.user.LoadImageW(None, str(runtime_paths.ICON), 1, 32, 32, 0x10)
         if not self.icon_handle:
             return
         self.user.CallWindowProcW.argtypes = [ct.c_void_p, ct.c_void_p, ct.c_uint, ct.c_size_t, ct.c_ssize_t]

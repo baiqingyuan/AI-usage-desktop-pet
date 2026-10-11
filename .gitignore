@@ -28,6 +28,8 @@ __pycache__/
 venv/
 dist/
 build/
+.build-venv/
+/AIUsage.exe
 *.spec
 .pytest_cache/
 .DS_Store

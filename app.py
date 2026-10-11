@@ -19,6 +19,7 @@ from tkinter import font as tkfont
 from tkinter import ttk, messagebox, filedialog
 
 import core
+import runtime_paths
 from soft_controls import RoundedButton, RoundedSelect
 from ui_helpers import (BG, CARD, PANEL, TEXT, MUTED, GREEN, BLUE, AMBER, RED,
                         SoftCard, fitted_label, center_window, rounded)
@@ -242,11 +243,11 @@ def style_window(window):
         hwnd = user.GetAncestor(window.winfo_id(), 2)
         dwm = ctypes.WinDLL('dwmapi')
         dwm.DwmSetWindowAttribute.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
-        if (core.ROOT/'app.ico').exists():
-            window.iconbitmap(str(core.ROOT/'app.ico'))
+        if runtime_paths.ICON.exists():
+            window.iconbitmap(str(runtime_paths.ICON))
         from windows_integration import set_window_properties, APP_ID
-        set_window_properties(hwnd, {2: '"'+str(core.ROOT/'AIUsage.exe')+'"',
-                                     3: str(core.ROOT/'app.ico')+',0', 4: 'AI 用量挂件', 5: APP_ID})
+        set_window_properties(hwnd, {2: runtime_paths.launch_command(),
+                                     3: runtime_paths.taskbar_icon(), 4: 'AI 用量挂件', 5: APP_ID})
         for attribute, value in ((20, 0), (33, 2)):
             flag = ctypes.c_int(value)
             dwm.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(flag), ctypes.sizeof(flag))
@@ -309,7 +310,7 @@ class Dashboard:
         self.refresh_button = tk.Button(self.root)
         self.footer = tk.Label(self.root)
         self.surface = PetSurface(self, lambda _: self.open_settings())
-        icon = core.ROOT / 'app.ico'
+        icon = runtime_paths.ICON
         if icon.exists() and os.name == 'nt':
             self.root.iconbitmap(str(icon))
 
@@ -669,7 +670,10 @@ def main():
     parser.add_argument('--check', action='store_true', help='Read-only connection check without GUI')
     parser.add_argument('--offline', action='store_true', help='Open saved data without network requests')
     parser.add_argument('--smoke-test', action='store_true', help='Build GUI, exercise both layouts, then exit')
+    parser.add_argument('--smoke-report', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.smoke_report and not args.smoke_test:
+        parser.error('--smoke-report requires --smoke-test')
     if args.check:
         settings = core.load_settings()
         scanner = core.LocalCodexTokens()
@@ -683,7 +687,7 @@ def main():
         except (OSError, AttributeError):
             pass
     from windows_integration import WindowsBridge
-    bridge = None if args.smoke_test else WindowsBridge(core.ROOT)
+    bridge = None if args.smoke_test and not args.smoke_report else WindowsBridge(core.ROOT)
     if bridge and bridge.activate_existing():
         return
     root = tk.Tk()
@@ -693,7 +697,12 @@ def main():
         bridge.attach(root)
     if args.details:
         root.after(200, app.open_details)
+    smoke_state = {'ok': False, 'error': None}
     if args.smoke_test:
+        def failed_callback(kind, value, tb):
+            smoke_state['error'] = ''.join(traceback.format_exception(kind, value, tb))
+            root.destroy()
+        root.report_callback_exception = failed_callback
         def smoke():
             app.render()
             assert root.overrideredirect()
@@ -708,11 +717,29 @@ def main():
             dialog = SettingsDialog(app)
             dialog.update_idletasks()
             dialog.destroy()
-            app.surface.toggle_bubble()
+            originally_expanded = app.surface.visible_bubble
+            if originally_expanded:
+                app.surface.toggle_bubble()
             assert root.winfo_width() == 144
             app.surface.toggle_bubble()
             assert root.winfo_width() == 424
-            print('Borderless transparent pet, bubble toggle, details and settings: OK')
+            if not originally_expanded:
+                app.surface.toggle_bubble()
+            if bridge:
+                assert bridge.tray_added or os.environ.get('CI'), 'Tray icon was not registered'
+                assert bridge.event and bridge.mutex
+                if getattr(sys, 'frozen', False):
+                    # A second launch must activate this same folder's instance,
+                    # even though each independent launch extracts to a temp folder.
+                    import subprocess
+                    activation_env = dict(os.environ)
+                    activation_env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
+                    subprocess.run([sys.executable, '--offline'], env=activation_env,
+                                   check=True, timeout=30)
+                    assert bridge.kernel.WaitForSingleObject(bridge.event, 0) == 0
+            smoke_state['ok'] = True
+            if sys.stdout:
+                print('Borderless transparent pet, bubble toggle, details and settings: OK')
             root.destroy()
         root.after(800, smoke)
     try:
@@ -720,6 +747,17 @@ def main():
     finally:
         if bridge:
             bridge.close()
+    if args.smoke_test:
+        if smoke_state['error'] or not smoke_state['ok']:
+            raise RuntimeError(smoke_state['error'] or 'Smoke test did not complete')
+        if args.smoke_report:
+            core.atomic_json(core.Path(args.smoke_report), {
+                'ok': True, 'frozen': bool(getattr(sys, 'frozen', False)),
+                'version': runtime_paths.VERSION, 'data_root': str(core.ROOT),
+                'icon_available': runtime_paths.ICON.is_file(),
+                'taskbar_icon': runtime_paths.taskbar_icon(),
+                'interval': app.config['interval'],
+            })
 
 
 if __name__ == '__main__':
@@ -729,8 +767,9 @@ if __name__ == '__main__':
         (core.ROOT / 'startup-error.log').write_text(traceback.format_exc(), encoding='utf-8')
         if sys.stdout:
             traceback.print_exc()
-        try:
-            messagebox.showerror('启动失败', '请查看工具目录中的 startup-error.log。')
-        except Exception:
-            pass
+        if '--smoke-test' not in sys.argv:
+            try:
+                messagebox.showerror('启动失败', '请查看工具目录中的 startup-error.log。')
+            except Exception:
+                pass
         sys.exit(1)

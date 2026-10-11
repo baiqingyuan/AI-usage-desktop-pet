@@ -4,20 +4,24 @@
 
 点击机器人展开或收起气泡，切换平台和今日／本月用量，点击“查看详情”进入主界面。支持置顶、拖动、任务栏与托盘唤回，并自动记住显示偏好。
 
-## 下载与运行环境
+## 下载与启动
 
-Windows 10 / 11，Python 3.10 或更高版本（安装时保留 Tcl/Tk）。桌面程序只使用 Python 标准库，无需安装其他运行依赖。可使用 Git 克隆本仓库，或在 GitHub 选择 Code → Download ZIP 后解压；将整个目录放在你希望长期保留的位置。
+**Windows 10 / 11（64 位），无需安装 Python。**
 
-## 启动
+1. [下载免安装版 AIUsage.exe](https://github.com/baiqingyuan/AI-usage-desktop-pet/releases/latest/download/AIUsage.exe)。
+2. 放到准备长期保留的文件夹，双击运行。
 
-双击 **AIUsage.exe**。也可使用 **启动.vbs**；已经创建本机快捷方式的用户可以继续使用该快捷方式。程序自动寻找父目录的 Python 环境或已安装的 Python，运行无需安装第三方库。
-也可运行 `python app.py`。已有实例时再次启动会唤回原挂件。程序在任务栏和通知区域使用专用机器人图标；托盘图标可能位于隐藏图标列表。没有自动开机启动。
+无需解压、安装依赖或管理员权限。程序已包含运行环境和图标；再次双击会唤回已有挂件。Codex 用量沿用本机已有登录，其他 API 平台在“连接设置”填写密钥。
+
+更新时先退出挂件，再用新版 EXE 替换旧版；保留同文件夹的 settings.json 和 snapshot.json 即可保留配置。源码 ZIP 供开发使用，普通用户直接下载上面的 EXE。
+
+## 使用
 
 挂件展开约 424 × 262 像素，收起后约 144 × 262 像素；背景透明。默认始终置顶，最小化再唤回后也会恢复置顶；设置里仍可取消。拖动机器人或气泡即可移动，位置自动保存。点击气泡右上角三个小圆点，或右键挂件，可查看用量、设置、刷新、收起 / 展开气泡、隐藏或退出。点击托盘图标唤回，右键托盘图标打开菜单。`Ctrl+D` 打开主界面；挂件中的 `Esc` 最小化到任务栏，主界面中的 `Esc` 返回挂件。
 
 平台列表包含已启用的内置平台和手动平台。未连接的平台会明确显示未连接，可从主界面的“连接设置”完成配置；关闭所选平台后自动切换至可用平台。DeepSeek API 等只提供余额的平台会展示余额，隐藏无效的今日 / 本月按钮。所选时段没有 Token 数据时显示未提供，不会用另一个时段或余额冒充 Token。
 
-永久固定任务栏：程序运行后右键任务栏上的机器人图标 → **固定到任务栏**。也可右键本目录的 **AI 用量挂件.lnk**，选择固定到任务栏。专用快捷方式绑定应用标识、启动程序和图标，固定后不会误启动空白 Python 窗口。仅创建快捷方式或显示运行图标并不等于永久固定。
+永久固定任务栏：程序运行后右键任务栏上的机器人图标 → **固定到任务栏**。固定后直接从任务栏唤回即可。程序不会自动设置开机启动。
 
 ## 数据来源和接入
 
@@ -45,26 +49,28 @@ Windows 10 / 11，Python 3.10 或更高版本（安装时保留 Tcl/Tk）。桌�
 
 ## 项目文件与本地数据
 
-源码、启动程序、图标及测试位于项目目录。程序首次使用时在同一目录生成个人配置与用量快照，移动项目目录时请一并保存这些本地文件。Windows 自己管理的任务栏 / 开始菜单快捷方式继续保留在系统位置；Python、Codex 为外部运行程序。
+免安装版只需一个 AIUsage.exe。首次使用在 EXE 所在文件夹生成个人配置与用量快照；请放在桌面或其他可写文件夹。移动或备份时一并保存这些本地文件。运行时由系统管理临时运行文件、任务栏与通知区域；退出后临时运行目录会自动清理。
 
-- 应用：app.py、pet_ui.py、core.py、soft_controls.py、ui_helpers.py、windows_integration.py。
-- 启动入口：AIUsage.exe、启动.vbs；Launcher.cs 为启动程序源码。
-- 图标：app.ico、app-icon.png；build_icon.py 为图标绘制工具。
-- 检查：tests/；tools/render_previews.py 可从控件与矢量源码绘制布局预览。
+源码仓库包含界面、数据接入、图标、测试与构建脚本。生成的 EXE、配置、快照和本地历史备份不进入源码版本库；发布版 EXE 在 GitHub Releases 提供。
 
 settings.json 存储设置和 Windows DPAPI 加密密钥；只能在同一 Windows 用户上下文解密。snapshot.json 保存个人用量快照。配置、快照、日志、本机快捷方式、个人截图、布局预览及本地历史备份均由 .gitignore 排除，不会随源码提交。
 
 程序不复制 Codex 登录令牌，也不保存或上传聊天内容。自动接入只执行只读账户查询，不请求模型生成、不使用重置券、不修改套餐或付费设置。
 
-## 重建启动程序与图标
+## 开发与打包
 
-仓库内附可直接运行的 AIUsage.exe，也保留其 C# 源码。在 Windows PowerShell 中可以重建启动程序：
+仅开发者需要 Python 3.11（保留 Tcl/Tk）。在 Windows 项目目录中执行：
 
 ```powershell
-& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe /reference:System.Windows.Forms.dll /win32icon:app.ico /out:AIUsage.exe Launcher.cs
+python -m venv .build-venv
+.\.build-venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.build-venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.build-venv\Scripts\python.exe tools/build_release.py
 ```
 
-可选绘图工具 build_icon.py 和 tools/render_previews.py 需要 Pillow；桌面程序运行时不需要 Pillow。生成的布局预览可能含你当前的真实用量，默认不会提交至版本库。
+输出 dist/AIUsage.exe 和 SHA256SUMS.txt。构建脚本仅打包程序与图标，随后在中文路径、不同工作目录、PATH 不含 Python 的环境中验证启动、界面和配置保留。推送版本标签（如 v0.4.0）会自动检查、构建并上传 Releases。
+
+源码可运行 `python app.py`，也可使用启动.vbs。可选图标与布局预览工具需要 Pillow；应用运行不需要 Pillow。布局预览可能含真实用量，默认不会提交。
 
 ## 检查
 
