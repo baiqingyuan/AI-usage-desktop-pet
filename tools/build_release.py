@@ -74,7 +74,7 @@ def verify_bundle(executable):
         assert updates.file_digest(stage / 'previous.exe') == old_digest, 'Previous EXE was not preserved'
         assert settings.read_bytes() == settings_before, 'Update modified configuration'
         assert snapshot.read_bytes() == snapshot_before, 'Update modified the saved usage'
-        assert json.loads((stage / 'result.json').read_text())['status'] == 'success'
+        assert json.loads((stage / 'result.json').read_text(encoding='utf-8'))['status'] == 'success'
         subprocess.run([str(app), '--smoke-test', '--smoke-report', str(report)],
                        cwd=temporary, env=update_env, check=True, timeout=60)
         assert json.loads(report.read_text(encoding='utf-8'))['interval'] == 237
@@ -101,7 +101,7 @@ def verify_bundle(executable):
             helpers = remaining
             if helpers:
                 time.sleep(.2)
-        assert json.loads((stage / 'result.json').read_text())['status'] == 'success'
+        assert json.loads((stage / 'result.json').read_text(encoding='utf-8'))['status'] == 'success'
         assert updates.file_digest(app) == digest
         assert updates.file_digest(stage / 'previous.exe') == digest
         assert json.loads(settings.read_text(encoding='utf-8'))['interval'] == 237

@@ -132,8 +132,8 @@ class UpdateTests(unittest.TestCase):
                 restart.assert_called_once_with(target, [])
             self.assertEqual(target.read_bytes(), executable(b'new'))
             self.assertEqual((stage/'previous.exe').read_bytes(), executable(b'old'))
-            self.assertEqual((target.parent/'settings.json').read_text(), '{"secret":"UNCHANGED"}')
-            self.assertEqual((target.parent/'snapshot.json').read_text(), '{"usage":"UNCHANGED"}')
+            self.assertEqual((target.parent/'settings.json').read_text(encoding='utf-8'), '{"secret":"UNCHANGED"}')
+            self.assertEqual((target.parent/'snapshot.json').read_text(encoding='utf-8'), '{"usage":"UNCHANGED"}')
 
     def test_locked_target_retries_instead_of_overwriting_or_deleting_it(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -158,12 +158,12 @@ class UpdateTests(unittest.TestCase):
                 self.assertFalse(updates.apply_plan(plan))
             self.assertEqual(restart.call_count, 2)
             self.assertEqual(target.read_bytes(), executable(b'old'))
-            self.assertEqual(json.loads((stage/'result.json').read_text())['status'], 'failed')
+            self.assertEqual(json.loads((stage/'result.json').read_text(encoding='utf-8'))['status'], 'failed')
 
     def test_invalid_hash_or_outside_candidate_never_touches_target(self):
         with tempfile.TemporaryDirectory() as temporary:
             target, stage, plan = self.setup_plan(temporary)
-            value = json.loads(plan.read_text())
+            value = json.loads(plan.read_text(encoding='utf-8'))
             value['sha256'] = '0' * 64
             updates.write_json(plan, value)
             with self.assertRaises(updates.UpdateError):
@@ -177,7 +177,7 @@ class UpdateTests(unittest.TestCase):
     def test_ready_acknowledgement_requires_matching_nonce_and_live_helper(self):
         with tempfile.TemporaryDirectory() as temporary:
             target, stage, plan = self.setup_plan(temporary)
-            nonce = json.loads(plan.read_text())['nonce']
+            nonce = json.loads(plan.read_text(encoding='utf-8'))['nonce']
             ready = stage / ('ready-' + nonce + '.json')
             self.assertFalse(updates.helper_ready(plan, ready))
             with patch.object(updates, 'parent_alive', return_value=True):
@@ -195,7 +195,7 @@ class UpdateTests(unittest.TestCase):
     def test_helper_waits_for_old_process_to_exit_before_replacing_it(self):
         with tempfile.TemporaryDirectory() as temporary:
             target, stage, plan = self.setup_plan(temporary)
-            nonce = json.loads(plan.read_text())['nonce']
+            nonce = json.loads(plan.read_text(encoding='utf-8'))['nonce']
             def waiting(_):
                 self.assertTrue((stage / ('ready-' + nonce + '.json')).exists())
                 self.assertEqual(target.read_bytes(), executable(b'old'))
@@ -208,7 +208,7 @@ class UpdateTests(unittest.TestCase):
     def test_cancelled_handoff_keeps_old_version(self):
         with tempfile.TemporaryDirectory() as temporary:
             target, stage, plan = self.setup_plan(temporary)
-            value = json.loads(plan.read_text())
+            value = json.loads(plan.read_text(encoding='utf-8'))
             (stage/('cancel-' + value['nonce'] + '.json')).write_text('{}')
             self.assertFalse(updates.apply_plan(plan, relaunch=False))
             self.assertEqual(target.read_bytes(), executable(b'old'))

@@ -5,7 +5,7 @@ import subprocess
 import sys
 import threading
 
-VERSION = '0.5.0'
+VERSION = '0.5.1'
 
 
 def locations(module_file=None, executable=None, frozen=None):
