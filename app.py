@@ -20,6 +20,8 @@ from tkinter import ttk, messagebox, filedialog
 
 import core
 import runtime_paths
+from update_ui import UpdateManager
+import updates
 from soft_controls import RoundedButton, RoundedSelect
 from ui_helpers import (BG, CARD, PANEL, TEXT, MUTED, GREEN, BLUE, AMBER, RED,
                         SoftCard, fitted_label, center_window, rounded)
@@ -256,6 +258,8 @@ def style_window(window):
 
 
 class Dashboard:
+    style_window = staticmethod(style_window)
+
     def __init__(self, root, offline=False):
         self.root = root
         # Pixel-based window dimensions remain compact on high-DPI desktops.
@@ -272,6 +276,7 @@ class Dashboard:
         self.details = None
         self.settings = None
         self.panels = []
+        self.updater = UpdateManager(self)
         self.next_refresh = time.monotonic()
         root.title('AI 用量桌面')
         root.geometry('424x262')
@@ -344,6 +349,9 @@ class Dashboard:
         self.details.lift()
         self.details.focus_set()
 
+    def open_updates(self, refresh=False):
+        return self.updater.show(refresh=refresh)
+
     def open_settings(self):
         if self.settings and self.settings.winfo_exists():
             self.settings.deiconify()
@@ -413,6 +421,8 @@ class Dashboard:
         threading.Thread(target=worker, daemon=True).start()
 
     def tick(self):
+        if not self.updater.poll():
+            return
         changed = False
         rerun = False
         while True:
@@ -594,6 +604,8 @@ class DetailWindow(tk.Toplevel):
         heading.pack(fill='x')
         label(heading, '用量总览', 22, bold=True).pack(side='left')
         button(heading, '连接设置', app.open_settings).pack(side='right')
+        self.update_button = button(heading, '检查更新', lambda: app.open_updates(refresh=True))
+        self.update_button.pack(side='right', padx=(0, 8))
         self.tabs = tk.Frame(self, bg=BG, padx=20)
         self.tabs.pack(fill='x', pady=(0, 12))
         label(self.tabs, '查看平台', 11, MUTED).pack(side='left', padx=(4, 14))
@@ -622,6 +634,10 @@ class DetailWindow(tk.Toplevel):
         style_window(self)
         app.panel_opened(self)
 
+    def update_update_button(self):
+        self.update_button.text = '有新版本' if self.app.updater.available else '检查更新'
+        self.update_button.draw()
+
     def scroll(self, event):
         if event.widget.winfo_toplevel() == self:
             self.canvas.yview_scroll(int(-event.delta / 120), 'units')
@@ -632,6 +648,7 @@ class DetailWindow(tk.Toplevel):
         self.canvas.yview_moveto(0)
 
     def render(self):
+        self.update_update_button()
         ids = self.app.enabled_ids()
         if self.selected not in ids:
             self.selected = None
@@ -656,6 +673,10 @@ class DetailWindow(tk.Toplevel):
         self.canvas.yview_moveto(position)
 
     def close(self):
+        if self.app.updater.window and self.app.updater.window.winfo_exists():
+            if self.app.updater.state == 'applying':
+                return
+            self.app.updater.window.close()
         self.selector.close_menu()
         if self.app.settings and self.app.settings.winfo_exists():
             self.app.settings.destroy()
@@ -671,9 +692,22 @@ def main():
     parser.add_argument('--offline', action='store_true', help='Open saved data without network requests')
     parser.add_argument('--smoke-test', action='store_true', help='Build GUI, exercise both layouts, then exit')
     parser.add_argument('--smoke-report', help=argparse.SUPPRESS)
+    parser.add_argument('--smoke-update', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--apply-update', help=argparse.SUPPRESS)
+    parser.add_argument('--update-no-relaunch', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.apply_update:
+        try:
+            result = updates.apply_plan(args.apply_update, relaunch=not args.update_no_relaunch)
+        except Exception:
+            result = False
+        raise SystemExit(0 if result else 1)
+    if args.update_no_relaunch:
+        parser.error('--update-no-relaunch requires --apply-update')
     if args.smoke_report and not args.smoke_test:
         parser.error('--smoke-report requires --smoke-test')
+    if args.smoke_update and not (args.smoke_test and getattr(sys, 'frozen', False)):
+        parser.error('--smoke-update requires a bundled smoke test')
     if args.check:
         settings = core.load_settings()
         scanner = core.LocalCodexTokens()
@@ -717,6 +751,19 @@ def main():
             dialog = SettingsDialog(app)
             dialog.update_idletasks()
             dialog.destroy()
+            app.updater.latest = updates.Release('99.0.0', 'v99.0.0', '更新自检',
+                '此内容只用于构建检查，不会出现在正式使用中。', '', 1024, '', '')
+            app.surface.render()
+            assert app.surface.canvas.find_withtag('update-badge')
+            update_dialog = app.open_updates()
+            update_dialog.update_idletasks()
+            assert root.state() == 'withdrawn'
+            assert update_dialog.confirm_button.cget('state') == 'normal'
+            update_dialog.close()
+            assert app.updater.window is None
+            app.updater.latest = None
+            app.surface.render()
+            assert not app.surface.canvas.find_withtag('update-badge')
             originally_expanded = app.surface.visible_bubble
             if originally_expanded:
                 app.surface.toggle_bubble()
@@ -739,8 +786,23 @@ def main():
                     assert bridge.kernel.WaitForSingleObject(bridge.event, 0) == 0
             smoke_state['ok'] = True
             if sys.stdout:
-                print('Borderless transparent pet, bubble toggle, details and settings: OK')
-            root.destroy()
+                print('Borderless transparent pet, bubble toggle, details, updates and settings: OK')
+            if args.smoke_update:
+                import shutil
+                stage = core.ROOT / '.updates'
+                stage.mkdir(exist_ok=True)
+                candidate = stage / ('candidate-' + uuid.uuid4().hex + '.exe')
+                shutil.copy2(sys.executable, candidate)
+                app.updater.start_helper(candidate, updates.file_digest(candidate), runtime_paths.VERSION,
+                                         relaunch=False)
+                assert app.updater.state == 'applying', app.updater.error
+                def handoff_timeout():
+                    raise RuntimeError('Compiled update handoff did not close the old GUI')
+                root.after(25000, handoff_timeout)
+                # The ordinary update poll validates the helper's ready message,
+                # closes this GUI, and releases the bootloader's EXE lock.
+            else:
+                root.destroy()
         root.after(800, smoke)
     try:
         root.mainloop()

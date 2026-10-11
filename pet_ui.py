@@ -174,6 +174,11 @@ class PetSurface:
             self.text(72, 38, result['name'], 10, MUTED, anchor='center', width=118)
             self.number(72, 60, primary['value'] if primary else 'AI 用量', 16, MINT,
                         anchor='center', width=118)
+        if self.app.updater.available:
+            self.rounded(42, 233, 60, 27, 14, '#f4cccf', ('data', 'update-badge'))
+            self.rounded(44, 232, 56, 26, 13, '#ca5260', ('data', 'update-badge'))
+            self.text(72, 245, 'New', 10, '#fff9f7', True, anchor='center',
+                      tag=('data', 'update-badge'))
         self.root.update_idletasks()
 
     def update_status(self, left=None):
@@ -243,7 +248,8 @@ class PetSurface:
         self.root.after(50, self.animate)
 
     def hover(self, event):
-        self.canvas.configure(cursor='hand2' if event.y < 95 or event.x > 133 else 'fleur')
+        self.canvas.configure(cursor='hand2' if event.y < 95 or event.x > 133 or (
+            self.app.updater.available and 42 <= event.x <= 102 and 232 <= event.y <= 260) else 'fleur')
 
     def press(self, event):
         self.drag = (event.x_root, event.y_root, self.root.winfo_x(), self.root.winfo_y(), False)
@@ -264,6 +270,8 @@ class PetSurface:
         self.drag = None
         if moved:
             self.save_position()
+        elif self.app.updater.available and 42 <= event.x <= 102 and 232 <= event.y <= 260:
+            self.app.open_updates()
         elif not self.visible_bubble or event.x < 144:
             self.toggle_bubble()
         elif self.visible_bubble and 153 <= event.x <= 343 and 24 <= event.y <= 56:

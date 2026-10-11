@@ -129,6 +129,18 @@ def render(window, path, transparent=False):
             write_text(draw, (xx*SCALE,(y+h/2)*SCALE), widget.cget('text'), font,
                        str(widget.cget('foreground')), anchor if anchor in ('w','e') else 'center',
                        width=wrap*SCALE if wrap else None,line_space=lines)
+        elif isinstance(widget, tk.Text):
+            font, lines = font_info(widget, widget.cget('font'))
+            padx, pady = int(widget.cget('padx')), int(widget.cget('pady'))
+            write_text(draw, ((x+padx)*SCALE, (y+pady)*SCALE),
+                       widget.get('1.0', 'end-1c'), font, str(widget.cget('foreground')),
+                       width=(w-2*padx-10)*SCALE,
+                       line_space=lines+(int(widget.cget('spacing1'))+int(widget.cget('spacing3')))*SCALE)
+        elif widget.winfo_class() == 'TProgressbar':
+            draw.rounded_rectangle((x*SCALE,y*SCALE,(x+w)*SCALE,(y+h)*SCALE),radius=4*SCALE,fill=app.PANEL)
+            fraction = min(1, max(0, float(widget.cget('value'))/float(widget.cget('maximum'))))
+            if fraction:
+                draw.rounded_rectangle((x*SCALE,y*SCALE,(x+w*fraction)*SCALE,(y+h)*SCALE),radius=4*SCALE,fill=app.GREEN)
         elif widget.winfo_class() in ('TEntry','TCombobox'):
             draw.rounded_rectangle((x*SCALE,y*SCALE,(x+w)*SCALE,(y+h)*SCALE),radius=7*SCALE,
                                    fill=app.CARD,outline='#c7ddcd',width=SCALE)

@@ -457,10 +457,13 @@ class RoundedButton(tk.Canvas):
         border = GREEN if self.focus_get() is self else '#cedfd3'
         fill = '#38775f' if self.accent and (self.hovered or self.pressed) else (
             GREEN if self.accent else '#d8eadd' if self.hovered else PANEL)
+        disabled = self.cget('state') == 'disabled'
+        if disabled:
+            fill, border = '#e2ebe5', '#d3e1d8'
         rounded(self, 1, 1, w-2, h-2, 15, border, 'button')
         rounded(self, 2, 2, w-4, h-4, 14, fill, 'button')
         self.create_text(w/2, h/2, text=self.text, font=(FONT, 12, 'bold'),
-                         fill='#f8fcf8' if self.accent else TEXT, tags='button')
+                         fill='#91a498' if disabled else '#f8fcf8' if self.accent else TEXT, tags='button')
 
     def enter(self, event):
         self.hovered = True
@@ -484,7 +487,7 @@ class RoundedButton(tk.Canvas):
         return 'break'
 
     def invoke(self):
-        if self.command:
+        if self.command and self.cget('state') != 'disabled':
             return self.command()
 
     def key(self, event):

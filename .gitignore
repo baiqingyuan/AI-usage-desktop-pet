@@ -28,6 +28,7 @@ __pycache__/
 venv/
 dist/
 build/
+.updates/
 .build-venv/
 /AIUsage.exe
 *.spec

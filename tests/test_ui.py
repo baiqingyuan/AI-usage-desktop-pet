@@ -586,5 +586,132 @@ print('Exit menu closed cleanly')
         self.assertIsNone(selector.popup_window)
         details.close()
 
+
+    def fake_update(self, version='0.6.0'):
+        import updates
+        tag = 'v' + version
+        return updates.Release(version, tag, '界面与体验更新', '新增功能\n- 支持主动选择更新。',
+                               '2026-10-11T00:00:00Z', 12*1024*1024,
+                               updates.asset_url(tag, 'AIUsage.exe'),
+                               updates.asset_url(tag, 'SHA256SUMS.txt'))
+
+    def test_red_update_badge_is_clickable_below_robot_and_dialog_is_centered(self):
+        manager = self.dashboard.updater
+        manager.latest = self.fake_update()
+        surface = self.dashboard.surface
+        for expanded in (False, True):
+            surface.visible_bubble = expanded
+            surface.render()
+            surface.animate()
+            self.root.update()
+            badge = surface.canvas.find_withtag('update-badge')
+            self.assertTrue(badge)
+            box = surface.canvas.bbox('update-badge')
+            pet = surface.canvas.bbox('pet')
+            self.assertGreater(box[1], pet[3])
+            self.assertLessEqual(box[3], surface.HEIGHT)
+            surface.release(SimpleNamespace(x=72, y=243))
+            dialog = manager.window
+            self.root.update()
+            self.assert_centered(dialog, self.root)
+            self.assertEqual(self.root.state(), 'withdrawn')
+            self.assertIn('0.6.0', dialog.headline.cget('text'))
+            self.assertEqual(dialog.confirm_button.cget('state'), 'normal')
+            dialog.close()
+            self.root.update()
+            self.assertEqual(surface.visible_bubble, expanded)
+        manager.latest = self.fake_update('0.4.1')
+        surface.render()
+        self.assertFalse(surface.canvas.find_withtag('update-badge'))
+
+    def test_update_window_returns_to_main_and_closes_platform_menu(self):
+        manager = self.dashboard.updater
+        manager.latest = self.fake_update()
+        self.dashboard.open_details('codex')
+        details = self.dashboard.details
+        self.assertEqual(details.update_button.text, '有新版本')
+        details.selector.open_menu()
+        dialog = self.dashboard.open_updates()
+        self.root.update()
+        self.assertIsNone(details.selector.popup_window)
+        self.assert_centered(dialog, details)
+        self.assertIs(self.dashboard.open_updates(), dialog)
+        dialog.close()
+        self.root.update()
+        self.assertEqual(self.root.state(), 'withdrawn')
+        self.assertIs(self.dashboard.active_panel(), details)
+        details.close()
+
+    def test_main_update_button_checks_again_even_with_cached_release(self):
+        manager = self.dashboard.updater
+        manager.latest = self.fake_update('0.4.1')
+        self.dashboard.open_details('codex')
+        with patch.object(manager, 'check') as check:
+            self.dashboard.details.update_button.invoke()
+            check.assert_called_once()
+        self.assertIsNotNone(manager.window)
+        manager.window.close()
+        self.dashboard.details.close()
+
+    def test_update_requires_confirmation_and_cancel_does_not_replace_program(self):
+        import threading
+        import updates
+        manager = self.dashboard.updater
+        manager.latest = self.fake_update()
+        started = threading.Event()
+        def download(release, folder, progress, cancel):
+            started.set()
+            cancel.wait(2)
+            raise updates.Cancelled('取消')
+        with patch.object(updates, 'download_release', side_effect=download) as download_mock, \
+                patch.object(manager, 'start_helper') as helper_mock:
+            dialog = self.dashboard.open_updates()
+            download_mock.assert_not_called()
+            dialog.confirm_button.invoke()
+            self.assertTrue(started.wait(1))
+            dialog.confirm_button.invoke()
+            self.assertEqual(download_mock.call_count, 1)
+            self.assertEqual(manager.state, 'downloading')
+            dialog.close()
+            manager.worker.join(2)
+            manager.poll()
+            self.assertEqual(manager.state, 'idle')
+            self.assertTrue(self.root.winfo_exists())
+            helper_mock.assert_not_called()
+
+    def test_update_check_runs_in_background_and_new_badge_survives_usage_refresh(self):
+        import threading
+        import updates
+        manager = self.dashboard.updater
+        self.dashboard.offline = False
+        gate = threading.Event()
+        def fetch():
+            gate.wait(2)
+            return self.fake_update()
+        with patch.object(updates, 'fetch_latest', side_effect=fetch):
+            manager.check()
+            self.assertEqual(manager.state, 'checking')
+            self.root.update()
+            gate.set()
+            manager.worker.join(2)
+            manager.poll()
+        self.assertTrue(manager.available)
+        self.dashboard.render()
+        self.assertTrue(self.dashboard.surface.canvas.find_withtag('update-badge'))
+        manager.next_check = float('inf')
+        self.dashboard.offline = True
+
+    def test_disabled_confirm_button_cannot_download_without_a_new_version(self):
+        import updates
+        manager = self.dashboard.updater
+        manager.latest = self.fake_update('0.4.1')
+        with patch.object(updates, 'download_release') as download:
+            dialog = self.dashboard.open_updates()
+            self.assertEqual(dialog.confirm_button.cget('state'), 'disabled')
+            dialog.confirm_button.invoke()
+            download.assert_not_called()
+            dialog.close()
+
+
 if __name__ == '__main__':
     unittest.main()
