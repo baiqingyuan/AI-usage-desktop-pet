@@ -13,8 +13,8 @@ class RuntimePathsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / 'project' / 'runtime_paths.py'
             root, resources = paths.locations(source, Path(folder) / 'python.exe', False)
-            self.assertEqual(root, source.parent)
-            self.assertEqual(resources, source.parent)
+            self.assertEqual(root, source.parent.resolve())
+            self.assertEqual(resources, source.parent.resolve())
 
     def test_frozen_data_stays_next_to_exe_instead_of_extraction(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -22,8 +22,8 @@ class RuntimePathsTests(unittest.TestCase):
             resource = base / '_MEI123' / 'runtime_paths.py'
             exe = base / '中文目录 空格' / '用量挂件.exe'
             root, resources = paths.locations(resource, exe, True)
-            self.assertEqual(root, exe.parent)
-            self.assertEqual(resources, resource.parent)
+            self.assertEqual(root, exe.parent.resolve())
+            self.assertEqual(resources, resource.parent.resolve())
             self.assertEqual(paths.locations(base / '_MEI456' / 'runtime_paths.py', exe, True)[0], root)
 
     def test_frozen_relaunch_and_icon_use_the_actual_exe(self):
@@ -31,8 +31,8 @@ class RuntimePathsTests(unittest.TestCase):
             exe = Path(folder) / '中文 挂件.exe'
             exe.touch()
             with patch.object(sys, 'frozen', True, create=True), patch.object(sys, 'executable', str(exe)):
-                self.assertEqual(paths.launch_command(), subprocess.list2cmdline([str(exe)]))
-                self.assertEqual(paths.taskbar_icon(), str(exe) + ',0')
+                self.assertEqual(paths.launch_command(), subprocess.list2cmdline([str(exe.resolve())]))
+                self.assertEqual(paths.taskbar_icon(), str(exe.resolve()) + ',0')
                 self.assertNotIn('_MEI', paths.taskbar_icon())
 
     def test_external_process_temporarily_restores_system_search_path(self):

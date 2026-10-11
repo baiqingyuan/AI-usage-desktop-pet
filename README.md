@@ -68,7 +68,7 @@ python -m venv .build-venv
 .\.build-venv\Scripts\python.exe tools/build_release.py
 ```
 
-输出 dist/AIUsage.exe 和 SHA256SUMS.txt。构建脚本仅打包程序与图标，随后在中文路径、不同工作目录、PATH 不含 Python 的环境中验证启动、界面和配置保留。推送版本标签（如 v0.4.0）会自动检查、构建并上传 Releases。
+输出 dist/AIUsage.exe 和 SHA256SUMS.txt。构建脚本仅打包程序与图标，随后在中文路径、不同工作目录、PATH 不含 Python 的环境中验证启动、界面和配置保留。推送版本标签（如 v0.4.1）会自动检查、构建并上传 Releases。
 
 源码可运行 `python app.py`，也可使用启动.vbs。可选图标与布局预览工具需要 Pillow；应用运行不需要 Pillow。布局预览可能含真实用量，默认不会提交。
 
